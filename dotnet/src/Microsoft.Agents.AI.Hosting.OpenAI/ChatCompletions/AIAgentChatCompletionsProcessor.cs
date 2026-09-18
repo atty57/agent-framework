@@ -62,7 +62,7 @@ internal static class AIAgentChatCompletionsProcessor
         IEnumerable<ChatMessage> chatMessages,
         AgentRunOptions? options) : IResult
     {
-        public Task ExecuteAsync(HttpContext httpContext)
+        public async Task ExecuteAsync(HttpContext httpContext)
         {
             var cancellationToken = httpContext.RequestAborted;
             var response = httpContext.Response;
@@ -74,7 +74,7 @@ internal static class AIAgentChatCompletionsProcessor
             response.Headers.ContentEncoding = "identity";
             httpContext.Features.GetRequiredFeature<IHttpResponseBodyFeature>().DisableBuffering();
 
-            return SseFormatter.WriteAsync(
+            await SseFormatter.WriteAsync(
                 source: this.GetStreamingChunksAsync(cancellationToken),
                 destination: response.Body,
                 itemFormatter: (sseItem, bufferWriter) =>
@@ -83,7 +83,10 @@ internal static class AIAgentChatCompletionsProcessor
                     JsonSerializer.Serialize(writer, sseItem.Data, ChatCompletionsJsonContext.Default.ChatCompletionChunk);
                     writer.Flush();
                 },
-                cancellationToken);
+                cancellationToken).ConfigureAwait(false);
+
+            // OpenAI-compatible clients expect the stream to be terminated with a [DONE] sentinel.
+            await response.Body.WriteAsync("data: [DONE]\n\n"u8.ToArray(), cancellationToken).ConfigureAwait(false);
         }
 
         private async IAsyncEnumerable<SseItem<ChatCompletionChunk>> GetStreamingChunksAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)

@@ -165,6 +165,9 @@ public sealed class OpenAIChatCompletionsConformanceTests : ConformanceTestBase
         string responseSse = await httpResponse.Content.ReadAsStringAsync();
         var chunks = ParseChatCompletionChunksFromSse(responseSse);
 
+        // Assert - Stream is terminated with the [DONE] sentinel
+        Assert.EndsWith("data: [DONE]\n\n", responseSse, System.StringComparison.Ordinal);
+
         // Parse the request
         using var requestDoc = JsonDocument.Parse(requestJson);
         var request = requestDoc.RootElement;
